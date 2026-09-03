@@ -6,7 +6,7 @@ terraform {
     bucket         = "vulchev-tasks-tfstate"
     key            = "staging/terraform.tfstate"
     region         = "eu-central-1"
-    dynamodb_table = "REPLACE_ME-tasks-tf-locks"
+    dynamodb_table = "vulchev-tasks-tf-locks"
     encrypt        = true
   }
 }
