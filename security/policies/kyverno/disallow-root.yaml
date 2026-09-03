@@ -1,0 +1,25 @@
+# Cluster-side backstop for the securityContext already set in the Helm
+# chart (deploy/helm/tasks-api/values.yaml) — catches anything deployed
+# outside this chart, or a values override that drops the setting.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-root-containers
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: "containers must set securityContext.runAsNonRoot: true"
+        pattern:
+          spec:
+            =(securityContext):
+              =(runAsNonRoot): "true"
+            containers:
+              - securityContext:
+                  runAsNonRoot: "true"

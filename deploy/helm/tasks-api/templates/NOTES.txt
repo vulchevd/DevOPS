@@ -1,0 +1,8 @@
+Tasks API ({{ .Values.image.tag }}) deployed as {{ include "tasks-api.name" . }}.
+
+Check rollout status:
+  kubectl rollout status deployment/{{ include "tasks-api.name" . }} -n {{ .Release.Namespace }}
+
+Port-forward to hit it locally:
+  kubectl port-forward svc/{{ include "tasks-api.name" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  curl localhost:8080/healthz

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: tasks-api
+description: Helm chart for the Tasks API — deployed by .github/workflows/cd.yml
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

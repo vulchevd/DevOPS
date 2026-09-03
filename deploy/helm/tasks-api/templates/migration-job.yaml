@@ -1,0 +1,37 @@
+{{- if .Values.migrationJob.enabled }}
+# Run as a Helm pre-upgrade hook, so `helm upgrade` fails (and the release
+# rolls back) if a migration fails, rather than rolling out application code
+# against a schema it doesn't match.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tasks-api.name" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "tasks-api.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "tasks-api.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: flyway
+          # Built by .github/workflows/cd.yml from db/Dockerfile — migration
+          # SQL is baked in, not mounted, so this image is as immutable and
+          # scannable as the app image.
+          image: "{{ .Values.migrationJob.repository }}:{{ .Values.migrationJob.tag | default (printf "migrate-%s" .Values.image.tag) }}"
+          args:
+            - -url=jdbc:$(DATABASE_URL_JDBC)
+            - -user=$(DB_USERNAME)
+            - -password=$(DB_PASSWORD)
+            - migrate
+          envFrom:
+            - secretRef:
+                name: {{ include "tasks-api.name" . }}-db
+{{- end }}

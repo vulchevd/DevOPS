@@ -1,0 +1,65 @@
+# Base defaults, overridden per environment by values-staging.yaml /
+# values-prod.yaml. See docs/architecture.md for the reasoning behind the
+# rolling-update numbers.
+
+image:
+  repository: REPLACE_ME.dkr.ecr.eu-central-1.amazonaws.com/tasks-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+service:
+  port: 80
+  targetPort: 8080
+
+readinessProbe:
+  httpGet: { path: /healthz, port: 8080 }
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet: { path: /healthz, port: 8080 }
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Runtime secrets come from AWS Secrets Manager via External Secrets, never
+# from a plaintext value in this file. See templates/externalsecret.yaml.
+externalSecret:
+  enabled: true
+  secretArn: "REPLACE_ME"   # infra/terraform/envs/<env> output: db_secret_arn
+  refreshInterval: 1h
+
+migrationJob:
+  enabled: true
+  # Same ECR repository as the app image, distinguished by a "migrate-"
+  # tag prefix — one repo to scan and promote, not two.
+  repository: REPLACE_ME.dkr.ecr.eu-central-1.amazonaws.com/tasks-api
+  tag: ""   # defaults to "migrate-<image.tag>", set explicitly by cd.yml
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
