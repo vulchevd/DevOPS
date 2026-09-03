@@ -1,0 +1,22 @@
+# Only images from this project's own ECR registry may run — blocks a
+# compromised or typo'd public image reference from ever being scheduled,
+# regardless of what CI did or didn't catch.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: only-allow-project-ecr
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      validate:
+        message: "images must come from the project's ECR registry (REPLACE_ME.dkr.ecr.*.amazonaws.com)"
+        pattern:
+          spec:
+            containers:
+              - image: "REPLACE_ME.dkr.ecr.*.amazonaws.com/*"

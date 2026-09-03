@@ -1,0 +1,26 @@
+# Small, project-specific ruleset layered on top of `--config=auto` in
+# ci.yml. auto's registry rules are generic; these two catch the two ways
+# this specific FastAPI + SQLAlchemy app could shoot itself in the foot.
+rules:
+  - id: sqlalchemy-raw-sql-execute
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Raw SQL passed to .execute()/.text() risks SQL injection if any part
+      of the string is user input. Use the ORM query API (as in
+      src/main.py) or a parameterized query instead.
+    patterns:
+      - pattern-either:
+          - pattern: $SESSION.execute(f"...")
+          - pattern: $SESSION.execute("..." + $X)
+          - pattern: text(f"...")
+
+  - id: fastapi-debug-enabled
+    languages: [python]
+    severity: WARNING
+    message: >-
+      FastAPI app constructed with debug=True — leaks stack traces
+      (including any secrets in local variables) in error responses.
+      Never ship this to staging or prod.
+    patterns:
+      - pattern: FastAPI(..., debug=True, ...)

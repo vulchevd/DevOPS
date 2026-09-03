@@ -1,0 +1,169 @@
+name: CI
+
+# Every check here runs before a build ever happens — code-level problems
+# are caught while they're still cheap (a failed check, not a failed
+# deploy). See docs/architecture.md, "Why this ordering".
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write   # required for CodeQL/Trivy SARIF upload to the Security tab
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      infra: ${{ steps.filter.outputs.infra }}
+      db: ${{ steps.filter.outputs.db }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'app/**'
+            infra:
+              - 'infra/terraform/**'
+            db:
+              - 'db/**'
+
+  lint-and-test:
+    name: Lint & unit test
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: app/requirements*.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+        working-directory: app
+      - run: ruff check .
+        working-directory: app
+      - run: pytest -q
+        working-directory: app
+
+  sast-codeql:
+    name: "SAST · CodeQL"
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - uses: github/codeql-action/analyze@v3
+
+  sast-semgrep:
+    name: "SAST · Semgrep"
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - run: semgrep ci --config=auto --config=security/semgrep-rules.yml --sarif --output=semgrep.sarif
+        env:
+          SEMGREP_RULES: auto
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+  secret-scan:
+    name: "Secret scan · gitleaks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # scan full history, not just the diff
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sca-dependencies:
+    name: "SCA · pip-audit"
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+        working-directory: app
+
+  iac-scan:
+    name: "IaC scan · tfsec + checkov"
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: infra/terraform
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra/terraform
+          quiet: true
+          soft_fail: false
+
+  terraform-plan:
+    name: "Terraform fmt/validate/plan (review only — never applied here)"
+    needs: [changes, iac-scan]
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [staging, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+        working-directory: infra/terraform
+      - run: terraform init -backend=false
+        working-directory: infra/terraform/envs/${{ matrix.env }}
+      - run: terraform validate
+        working-directory: infra/terraform/envs/${{ matrix.env }}
+      # A real `plan` needs cloud credentials and remote state, which this
+      # PR-time job intentionally doesn't have — see infra/terraform/README.md
+      # for why apply stays a human, out-of-band step for this project.
+
+  migration-validate:
+    name: "DB migration validate · Flyway"
+    needs: changes
+    if: needs.changes.outputs.db == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tasks
+          POSTGRES_PASSWORD: tasks
+          POSTGRES_DB: tasks
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          docker run --rm --network host \
+            -v "$PWD/db/migrations:/flyway/sql" \
+            flyway/flyway:10 \
+            -url=jdbc:postgresql://localhost:5432/tasks -user=tasks -password=tasks \
+            validate migrate info
