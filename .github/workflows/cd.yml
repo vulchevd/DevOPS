@@ -44,7 +44,7 @@ jobs:
       # Gate: the job stops here on a critical/unpatched CVE, so a bad image
       # never reaches the next step, let alone ECR or the cluster.
       - name: "Container image scan · Trivy"
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
           format: sarif
