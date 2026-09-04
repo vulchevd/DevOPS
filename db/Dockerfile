@@ -9,20 +9,14 @@ FROM flyway/flyway:13-alpine
 # have since been fixed upstream.
 RUN apk update && apk upgrade --no-cache
 
-# This project only ever migrates PostgreSQL. Flyway's official image
-# bundles JDBC drivers — and each driver's own dependency tree — for many
-# database vendors we never use (Snowflake, Databricks, MySQL, Oracle, SQL
-# Server, etc.), which is where Trivy's Netty/HttpComponents/vendor-JDBC
-# findings keep coming from. Strip that unused surface out rather than
-# chase each vendor's own release cadence; the postgresql driver and
-# Flyway's own core jars are left untouched.
-RUN find /flyway -iname '*.jar' \
-      \( -iname '*snowflake*' -o -iname '*databricks*' -o -iname '*redshift*' \
-         -o -iname '*mysql*' -o -iname '*mariadb*' -o -iname '*mssql*' \
-         -o -iname '*sqlserver*' -o -iname '*ojdbc*' -o -iname '*oracle*' \
-         -o -iname '*db2*' -o -iname '*sqlite*' -o -iname '*saphana*' \
-         -o -iname '*hana*' -o -iname '*informix*' -o -iname '*teradata*' \
-         -o -iname '*cockroach*' -o -iname '*netty*' \) \
-      -delete
+# NOTE: we previously tried deleting unused vendor JDBC driver jars here
+# (Snowflake, Databricks, MySQL, etc.) to clear their CVEs. That broke
+# Flyway itself — its plugin loader enumerates every registered
+# database-type plugin at startup regardless of which one you actually
+# use, so removing one driver's jar while its registration elsewhere in
+# the distribution still references it crashes Flyway with
+# NoClassDefFoundError before it ever reaches Postgres. Reverted: any
+# vendor-driver CVEs Trivy finds here are handled via .trivyignore
+# instead (see repo root), not by deleting files from this image.
 
 COPY migrations /flyway/sql
