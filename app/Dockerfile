@@ -10,13 +10,6 @@ RUN python -m venv /venv \
 
 FROM python:3.12-slim AS runtime
 
-# The base image ships its own system-level pip/setuptools (and pip vendors
-# msgpack internally) — Trivy flags CVEs in whatever old versions
-# python:3.12-slim happens to bundle, even though the app itself only ever
-# runs out of /venv below. Upgrade them so the image doesn't carry known,
-# fixed vulnerabilities it never actually uses.
-RUN pip install --no-cache-dir --upgrade pip setuptools
-
 # Non-root, unprivileged user — also enforced cluster-side by the Kyverno
 # policy in security/policies/kyverno/disallow-root.yaml as a backstop.
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home app
@@ -24,6 +17,15 @@ RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home a
 WORKDIR /app
 COPY --from=builder /venv /venv
 COPY src ./src
+
+# The app only ever runs /venv/bin/uvicorn — it never invokes pip at
+# runtime. Rather than chase CVEs in whatever pip/setuptools versions
+# happen to ship in the base image and the venv (and pip's internally
+# vendored msgpack, which can lag behind upstream fixes pip has no
+# control over), just remove all of it: smaller image, smaller attack
+# surface, nothing build-time-only left for a scanner to flag.
+RUN pip uninstall -y pip setuptools \
+    && /venv/bin/pip uninstall -y pip setuptools
 
 ENV PATH="/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
