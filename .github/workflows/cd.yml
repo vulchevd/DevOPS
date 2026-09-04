@@ -116,6 +116,9 @@ jobs:
     name: "DAST · OWASP ZAP baseline"
     needs: deploy-staging
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # zaproxy/action-baseline opens/updates a GitHub Issue with the scan results
     steps:
       - name: Baseline scan against staging
         uses: zaproxy/action-baseline@v0.14.0
