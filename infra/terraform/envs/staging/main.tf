@@ -42,9 +42,13 @@ module "eks" {
 
   # Deliberately small — this is a demo/staging environment, not prod load.
   # t3.micro (not the module default t3.medium) to stay free-tier eligible.
+  # 4 nodes, not 3: t3.micro's ENI/IP limit caps it at ~4 pods each (system
+  # pods aws-node/kube-proxy/coredns + External Secrets Operator's 3 pods
+  # already fill 3 nodes), so the app's own replicas had nowhere left to
+  # schedule ("0/3 nodes are available: 3 Too many pods").
   node_instance_types = ["t3.micro"]
-  node_desired_size    = 2
-  node_max_size        = 3
+  node_desired_size    = 4
+  node_max_size        = 4
 }
 
 module "rds" {
