@@ -21,3 +21,20 @@ CVE-2026-56819
 CVE-2026-59901
 CVE-2026-55831
 CVE-2026-55833
+
+# Vendor JDBC drivers we don't use (Databricks, SQL Server) — bundled inside
+# the flyway/flyway image alongside the Postgres driver this project actually
+# runs migrations with. Same reasoning as the Netty block above: this image
+# only ever runs `flyway migrate` against our own private RDS instance from
+# inside a locked-down VPC, so there is no attacker-reachable network service
+# here for a client-side JDBC library CVE to be exploited through.
+#
+# flyway/drivers/databricks-jdbc-3.4.1.jar (jackson-core, jackson-databind,
+# httpcore5, httpcore5-h2 bundled inside it):
+GHSA-r7wm-3cxj-wff9
+CVE-2026-54512
+CVE-2026-54513
+CVE-2026-54399
+CVE-2026-54428
+# flyway/drivers/mssql-jdbc-12.10.2.jre11.jar:
+CVE-2025-59250
