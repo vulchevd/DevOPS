@@ -1,5 +1,5 @@
 name: CD
-
+ 
 # Only runs on main, and only after every ci.yml check has already passed
 # for that commit (branch protection requires ci.yml's jobs as required
 # checks before merge is even allowed). This workflow is what actually
@@ -7,16 +7,17 @@ name: CD
 on:
   push:
     branches: [main]
-
+ 
 permissions:
   contents: read
-  id-token: write   # OIDC federation to AWS — no long-lived access keys in secrets
-
+  id-token: write        # OIDC federation to AWS — no long-lived access keys in secrets
+  security-events: write # required for github/codeql-action/upload-sarif to post Trivy results
+ 
 env:
   AWS_REGION: eu-central-1
   ECR_REPOSITORY: tasks-api
   IMAGE_TAG: ${{ github.sha }}
-
+ 
 jobs:
   build-and-scan:
     name: Build, scan, push
@@ -27,24 +28,24 @@ jobs:
       migrate_image: ${{ steps.image.outputs.migrate }}
     steps:
       - uses: actions/checkout@v4
-
+ 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
+ 
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr
-
+ 
       - name: Build app image
         run: docker build -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" ./app
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-
+ 
       # Gate: the job stops here on a critical/unpatched CVE, so a bad image
       # never reaches the next step, let alone ECR or the cluster.
       - name: "Container image scan · Trivy"
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
           format: sarif
@@ -52,40 +53,40 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
-
+ 
       - uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: trivy-app.sarif
-
+ 
       - name: Push app image
         run: docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-
+ 
       - name: Build migration image
         run: docker build -t "$REGISTRY/$ECR_REPOSITORY:migrate-$IMAGE_TAG" ./db
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-
+ 
       - name: "Migration image scan · Trivy"
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: "${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:migrate-${{ env.IMAGE_TAG }}"
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
-
+ 
       - name: Push migration image
         run: docker push "$REGISTRY/$ECR_REPOSITORY:migrate-$IMAGE_TAG"
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-
+ 
       - id: image
         run: |
           echo "app=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
           echo "migrate=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:migrate-${{ env.IMAGE_TAG }}" >> "$GITHUB_OUTPUT"
-
+ 
   deploy-staging:
     name: Deploy to staging
     needs: build-and-scan
@@ -110,7 +111,7 @@ jobs:
             --set externalSecret.secretArn="${{ secrets.STAGING_DB_SECRET_ARN }}" \
             --wait --timeout 5m
       - run: kubectl rollout status deployment/tasks-api -n tasks-api
-
+ 
   dast-scan:
     name: "DAST · OWASP ZAP baseline"
     needs: deploy-staging
@@ -124,7 +125,7 @@ jobs:
         # Non-blocking by default (zaproxy/action-baseline exits 0 on WARN):
         # findings post as a PR/workflow annotation for review before the
         # manual promote step below, rather than hard-failing the pipeline.
-
+ 
   promote-prod:
     name: Promote to production
     needs: [build-and-scan, dast-scan]
@@ -151,3 +152,4 @@ jobs:
             --set externalSecret.secretArn="${{ secrets.PROD_DB_SECRET_ARN }}" \
             --wait --timeout 5m
       - run: kubectl rollout status deployment/tasks-api -n tasks-api
+ 
