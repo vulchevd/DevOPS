@@ -5,7 +5,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 COPY requirements.txt .
 RUN python -m venv /venv \
-    && /venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /venv/bin/pip install --no-cache-dir --upgrade pip setuptools \
     && /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 FROM python:3.12-slim AS runtime
