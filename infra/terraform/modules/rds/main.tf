@@ -76,7 +76,7 @@ resource "aws_db_instance" "this" {
 
   multi_az                  = false
   publicly_accessible       = false
-  backup_retention_period    = 7
+  backup_retention_period    = 0
   deletion_protection        = var.deletion_protection
   skip_final_snapshot        = !var.deletion_protection
   auto_minor_version_upgrade = true
