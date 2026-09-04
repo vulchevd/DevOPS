@@ -1,5 +1,13 @@
 replicaCount: 2
 
+# Public endpoint for this environment only — needed so the DAST job
+# (zaproxy/action-baseline, running on a GitHub-hosted runner outside the
+# VPC) and manual demo checks have something reachable. Provisions an AWS
+# Classic Load Balancer; see templates/service.yaml for why this isn't the
+# chart-wide default.
+service:
+  type: LoadBalancer
+
 resources:
   requests: { cpu: 50m, memory: 96Mi }
   limits: { cpu: 250m, memory: 192Mi }

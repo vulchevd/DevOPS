@@ -5,7 +5,12 @@ metadata:
   labels:
     {{- include "tasks-api.labels" . | nindent 4 }}
 spec:
-  type: ClusterIP
+  # ClusterIP by default (internal-only) — staging overrides this to
+  # LoadBalancer via values-staging.yaml so the DAST job (which runs on a
+  # GitHub-hosted runner outside the VPC) and demo access have a reachable
+  # public endpoint. Production should stay internal, fronted by an
+  # Ingress/ALB, once one exists — do not default this to LoadBalancer.
+  type: {{ .Values.service.type | default "ClusterIP" }}
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
