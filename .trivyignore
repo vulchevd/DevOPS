@@ -1,16 +1,23 @@
-# Migration image (Flyway) — Netty CVEs shaded into Flyway's own core-io
-# module (io.netty:netty-handler / netty-codec-http2, bundled inside
-# core-io-3.12.0.jar), not a vendor JDBC driver we ship or control.
-# Not yet patched upstream by Flyway as of 13.5.0 (latest available).
+# Migration image (Flyway) — the entire Netty stack (netty-handler,
+# netty-codec-http, netty-codec-http2, netty-codec-compression, ...) is
+# shaded into Flyway's own core-io module (core-io-3.12.0.jar), not a
+# vendor JDBC driver we ship or control. Not yet patched upstream by
+# Flyway as of 13.5.0 (latest available) — every one of these is a
+# server-side HTTP/2, SPDY, or compression-codec DoS in that embedded
+# Netty copy.
 #
 # Accepted risk: this image only ever runs `flyway migrate` against our
-# own private RDS instance from inside a locked-down VPC (no inbound
-# traffic, no HTTP/2 or SPDY server exposed) — these are server-side DoS /
-# codec vulnerabilities with no real attack surface in how we use this
-# image. Revisit and remove these lines once Flyway ships a patched
-# core-io release.
+# own private RDS instance from inside a locked-down VPC — it never
+# accepts inbound traffic, so there is no attacker-reachable HTTP/2/SPDY
+# server here for any of these to trigger against. Revisit and remove
+# these lines once Flyway ships a patched core-io release (each new scan
+# has been surfacing more CVE IDs from the same embedded Netty copy, so
+# expect to append rather than assume this list is final).
 CVE-2026-44249
 CVE-2026-45416
 CVE-2026-50010
 CVE-2026-56745
 CVE-2026-56819
+CVE-2026-59901
+CVE-2026-55831
+CVE-2026-55833

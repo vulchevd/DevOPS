@@ -4,6 +4,11 @@
 # no reliance on Helm's chart-relative file globbing to reach db/migrations.
 FROM flyway/flyway:13-alpine
 
+# Patch the base Alpine OS packages — the image as published can lag a few
+# days behind Alpine's own security repo, and Trivy flags whatever CVEs
+# have since been fixed upstream.
+RUN apk update && apk upgrade --no-cache
+
 # This project only ever migrates PostgreSQL. Flyway's official image
 # bundles JDBC drivers — and each driver's own dependency tree — for many
 # database vendors we never use (Snowflake, Databricks, MySQL, Oracle, SQL
