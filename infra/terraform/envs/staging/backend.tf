@@ -3,10 +3,10 @@
 # out) but switch before more than one person, or CI, ever runs apply.
 terraform {
   backend "s3" {
-    bucket         = "REPLACE_ME-tasks-tfstate"
+    bucket         = "vulchev-tasks-tfstate"
     key            = "staging/terraform.tfstate"
     region         = "eu-central-1"
-    dynamodb_table = "REPLACE_ME-tasks-tf-locks"
+    dynamodb_table = "vulchev-tasks-tf-locks"
     encrypt        = true
   }
 }

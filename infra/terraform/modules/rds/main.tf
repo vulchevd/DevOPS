@@ -63,7 +63,7 @@ resource "aws_secretsmanager_secret_version" "db" {
 resource "aws_db_instance" "this" {
   identifier     = var.name
   engine         = "postgres"
-  engine_version = "16.4"
+  engine_version = "16"
   instance_class = var.instance_class
 
   allocated_storage     = 20
@@ -76,7 +76,7 @@ resource "aws_db_instance" "this" {
 
   multi_az                  = false
   publicly_accessible       = false
-  backup_retention_period    = 7
+  backup_retention_period    = 1
   deletion_protection        = var.deletion_protection
   skip_final_snapshot        = !var.deletion_protection
   auto_minor_version_upgrade = true

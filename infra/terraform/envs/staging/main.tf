@@ -41,8 +41,10 @@ module "eks" {
   tags       = local.tags
 
   # Deliberately small — this is a demo/staging environment, not prod load.
-  node_desired_size = 2
-  node_max_size      = 3
+  # t3.micro (not the module default t3.medium) to stay free-tier eligible.
+  node_instance_types = ["t3.micro"]
+  node_desired_size    = 2
+  node_max_size        = 3
 }
 
 module "rds" {
